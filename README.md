@@ -29,3 +29,6 @@ The API will support:
 - Group chats
 
 This API will serve as the foundation for chat applications, providing essential features for **seamless and interactive communication**.
+
+### Ref:
+- https://projects.masteringbackend.com/projects/build-your-own-chat-api
