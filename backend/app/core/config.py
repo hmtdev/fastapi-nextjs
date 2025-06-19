@@ -1,0 +1,27 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
+from dotenv import load_dotenv
+import os 
+
+ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
+
+load_dotenv(f".env.{ENVIRONMENT}")
+
+class Settings(BaseSettings):
+    environment: str
+    secret_key: str
+    database_url: str
+    debug: bool
+    admin_email: str
+    api_key: str
+    app_name: str 
+    model_config = SettingsConfigDict(env_file=f".env.{ENVIRONMENT}",extra = "allow")
+
+
+
+settings = Settings()
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return settings
