@@ -2,7 +2,7 @@
 
 ```bash
 cd backend
-uvicorn main:app --factory --reload
+uvicorn main:app --reload
 ```
 ## Account default Admin 
 ```bash
