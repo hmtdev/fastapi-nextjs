@@ -5,9 +5,9 @@ import os
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 
-load_dotenv(f".env.{ENVIRONMENT}")
-
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=f".env.{ENVIRONMENT}",extra = "allow")
+
     environment: str
     secret_key: str
     database_url: str
@@ -15,12 +15,9 @@ class Settings(BaseSettings):
     admin_email: str
     api_key: str
     app_name: str 
-    model_config = SettingsConfigDict(env_file=f".env.{ENVIRONMENT}",extra = "allow")
-
-
+    access_token_expire_minutes: int = 30
 
 settings = Settings()
-
 
 @lru_cache
 def get_settings() -> Settings:

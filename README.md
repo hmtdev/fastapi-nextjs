@@ -2,7 +2,12 @@
 
 ```bash
 cd backend
-uvicorn main:create_app --factory --reload
+uvicorn main:app --factory --reload
+```
+## Account default Admin 
+```bash
+username=admin
+password=admin@123
 ```
 
 ---
@@ -11,8 +16,8 @@ uvicorn main:create_app --factory --reload
 
 - **Backend:** Python (FastAPI)  
 - **Frontend:** Next.js  
-- **Database:** MongoDB  
-- **ODM:** (đang lựa chọn)  
+- **Database:** PostgreSQL
+- **ODM:** Sqlmodel from fastapi base on SQLAlchemy 
 - **Pattern:** Application Factory, Repository Pattern  
 - **Clean code:** SOLID principles  
 
