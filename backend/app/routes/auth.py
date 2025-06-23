@@ -3,8 +3,9 @@ from typing import Annotated
 from app.database.database import get_session
 from app.schema.user import (Role, Token, TokenResponse, UserCreate,
                              UserResponse)
-from app.services.auth import (authenticate_user, create_access_token,
+from app.services.auth import (authenticate_user,
                                get_admin_user, get_current_user, register_user)
+from app.core.security import create_access_token
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
