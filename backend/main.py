@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.database.database import create_db_and_tables
+from fastapi.middleware.cors import CORSMiddleware
 from app.routes import auth
 from fastapi import FastAPI
 
@@ -20,7 +21,15 @@ app = FastAPI(
     version="1.0",
     description="Oke",
     lifespan=lifespan
-)   
+)
+## Add middleware 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 app.include_router(auth.router, prefix="/api/v1")
 
 @app.get("/")
