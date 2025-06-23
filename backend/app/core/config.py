@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     api_key: str
     app_name: str 
     access_token_expire_minutes: int = 30
-
+    refresh_secret_key: str
+    
 settings = Settings()
 
 @lru_cache
