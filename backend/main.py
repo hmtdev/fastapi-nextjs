@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from app.core.config import get_settings
 from app.database.database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth
+from app.routes import api_v1
 from fastapi import FastAPI
 
 
@@ -27,16 +27,15 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept"]
 )
-app.include_router(auth.router, prefix="/api/v1")
+app.include_router(api_v1.router, prefix="/api/v1")
 
 @app.get("/")
 def read_root():
     return {
         "Environment": settings.environment,
-        "Database URL": settings.database_url,
+        "version": app.version,
         "Debug Mode": settings.debug,
-        "API Key": settings.api_key
     }

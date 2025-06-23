@@ -7,7 +7,7 @@ from app.schema.user import Role, UserCreate, UserResponse
 from fastapi import Depends, HTTPException, status
 from jwt.exceptions import InvalidTokenError
 from sqlmodel import Session, select
-from app.core.security import verify_password, oauth2_scheme ,hash_password, secret_key,ALGORITHM
+from app.core.security import verify_password, oauth2_scheme ,hash_password, secret_key,ALGORITHM,is_blacklisted
 
 ## create func authenticate_user
 def authenticate_user(username: str, password: str, db: Session):
@@ -19,7 +19,6 @@ def authenticate_user(username: str, password: str, db: Session):
         return False
     return user
 
-
 ## get current user
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -30,8 +29,15 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if is_blacklisted(token, db):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     try:
-        payload = jwt.decode(token, secret_key,ALGORITHM)
+        payload = jwt.decode(token, secret_key,algorithms=[ALGORITHM],options={"verify_signature":True, "verify_exp":True})
         username = payload.get("sub", None)
         if username is None:
             raise credentials_exception
@@ -42,7 +48,6 @@ def get_current_user(
         return user
     except InvalidTokenError:
         raise credentials_exception
-
 
 ## get_admin user
 def get_admin_user(user=Depends(get_current_user)):
