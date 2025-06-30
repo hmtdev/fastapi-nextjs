@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     app_name: str 
     access_token_expire_minutes: int = 30
     refresh_secret_key: str
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
     
 settings = Settings()
 

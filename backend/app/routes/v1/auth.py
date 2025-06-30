@@ -8,6 +8,7 @@ from app.core.security import (
     ExpiredSignatureError,
 )
 from app.database.database import get_session
+from app.database.redis import redis_client
 from app.models.user import User
 from app.schema.user import (
     Role,
@@ -21,7 +22,7 @@ from app.schema.user import (
 from app.services.auth import (
     authenticate_user,
     get_admin_user,
-    get_current_user,
+    verify_access_token,
     register_user,
     verify_password,
     hash_password,
@@ -36,7 +37,7 @@ router = APIRouter(tags=["Authentication"], prefix="/auth")
 admin_router = APIRouter(prefix="/admin", dependencies=[Depends(get_admin_user)])
 
 
-@router.post("/token")
+@router.post("/login")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[Session, Depends(get_session)],
@@ -50,6 +51,8 @@ async def login_for_access_token(
         )
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     refresh_token = create_refresh_token(data={"sub": user.username})
+    key = f"refresh_token:{user.username}:{refresh_token}"
+    redis_client.setex(key,60*60*24*7,"valid")
     return TokenResponse(
         access_token=access_token, refresh_token=refresh_token, token_type="bearer"
     )
@@ -61,11 +64,11 @@ async def register(user: UserCreate, db: Annotated[Session, Depends(get_session)
 
 
 @router.get("/me", response_model=UserResponse)
-def read_users_me(current_user=Depends(get_current_user)):
+def read_users_me(current_user=Depends(verify_access_token)):
     return UserResponse.model_validate(current_user)
 
 
-@router.post("/refresh")
+@router.post("/refresh-token")
 async def refresh_token(
     request: TokenRefresh, db: Annotated[Session, Depends(get_session)]
 ) -> TokenResponse:
@@ -115,7 +118,7 @@ def read_users_admin(current_user=Depends(get_admin_user)):
 async def change_password(
     request: PasswordChangeRequest,
     db=Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(verify_access_token),
 ):
     if not verify_password(
         request.current_password, hashed_password=current_user.hashed_password
@@ -131,7 +134,7 @@ async def change_password(
 async def logout(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[Session, Depends(get_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(verify_access_token)],
 ):
 
     success = add_to_blacklist(token, current_user.id, "access", db)
@@ -148,6 +151,5 @@ async def register_admin(
     current_user=Depends(get_admin_user),
 ):
     return register_user(user, db, role=Role.ADMIN)
-
 
 router.include_router(admin_router)

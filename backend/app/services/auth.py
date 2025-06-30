@@ -20,7 +20,7 @@ def authenticate_user(username: str, password: str, db: Session):
     return user
 
 ## get current user
-def get_current_user(
+def verify_access_token(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[Session, Depends(get_session)],
 ) -> User:
@@ -50,12 +50,12 @@ def get_current_user(
         raise credentials_exception
 
 ## get_admin user
-def get_admin_user(user=Depends(get_current_user)):
+def get_admin_user(user=Depends(verify_access_token)):
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not admin")
     return user
-
 ## register_user
+
 def register_user(user: UserCreate, db: Session, role:Role = Role.USER) -> UserResponse:
     statement = select(User).filter(User.username == user.username)
     exist_user = db.exec(statement).first()

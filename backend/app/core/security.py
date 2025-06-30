@@ -16,6 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 ALGORITHM = "HS256"
 access_token_expires_minutes = settings.access_token_expire_minutes
 secret_key = settings.secret_key
+refresh_secret_key = settings.refresh_secret_key
 
 ## create CryptContext for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -49,7 +50,9 @@ def create_token(
     to_encode.update({"exp": expire, "jti": jti})
     if token_type == "refresh":
         to_encode.update({"type": "refresh"})
-    encode_jwt = jwt.encode(to_encode, secret_key, ALGORITHM)
+        encode_jwt = jwt.encode(to_encode, refresh_secret_key, ALGORITHM)
+    else:
+        encode_jwt = jwt.encode(to_encode, secret_key, ALGORITHM)
     return encode_jwt
 
 
@@ -63,7 +66,7 @@ def create_refresh_token(data: dict, expires_delta: timedelta = None):
 
 def verify_refresh_token(token: str):
     try:
-        payload = jwt.decode(token, secret_key, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, refresh_secret_key, algorithms=[ALGORITHM])
 
         if not payload.get("jti"):
             raise InvalidTokenError("Missing JWT ID")

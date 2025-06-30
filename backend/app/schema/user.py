@@ -5,9 +5,9 @@ from app.models.user import Role
 
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
     username: str
-    full_name: str
+    full_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
