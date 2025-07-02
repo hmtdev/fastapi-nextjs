@@ -1,14 +1,13 @@
 from typing import Annotated
 import uuid
 import jwt
-
 from app.database.database import get_session
 from app.models.user import User
-from app.schema.user import Role, UserCreate, UserResponse, UserUpdate
+from app.schema.user import Role, UserCreate, UserResponse, UserUpdate ,GoogleUserRequest
 from fastapi import Depends, HTTPException, status
 from jwt.exceptions import InvalidTokenError
 from sqlmodel import Session, select
-from app.core.security import verify_password, oauth2_scheme ,hash_password, secret_key,ALGORITHM,is_blacklisted
+from app.core.security import verify_password, oauth2_scheme ,hash_password, secret_key,ALGORITHM,is_blacklisted,create_access_token,create_refresh_token
 
 ## create func authenticate_user
 def authenticate_user(username: str, password: str, db: Session):
@@ -116,3 +115,19 @@ def update_user(user_id: uuid.UUID, user_update: UserUpdate, db: Session) -> Use
     db.refresh(db_user)
     
     return UserResponse.model_validate(db_user)
+
+def update_google_user(user_update , db :Session) -> UserResponse:
+    statement = select(User).where(User.email==user_update.email)
+    user = db.exec(statement).first()
+    if not user:
+        user = User(
+            username = user_update.email,
+            full_name = user_update.name,
+            email = user_update.email,
+            avatar_url = user_update.picture,
+            hashed_password="google_oauth"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return UserResponse.model_validate(user)

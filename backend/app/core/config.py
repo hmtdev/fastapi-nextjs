@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     refresh_secret_key: str
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+    ## credentials google 
+    GOOGLE_CLIENT_ID : str
+    GOOGLE_CLIENT_SECRET :str
+    GOOGLE_REDIRECT_URI :str
     
 settings = Settings()
 

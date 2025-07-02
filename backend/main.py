@@ -15,7 +15,6 @@ async def lifespan(app: FastAPI):
     yield
     # Cleanup tasks can be done here if needed
 
-settings = get_settings()
 
 app = FastAPI(
     title="Demo App",

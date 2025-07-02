@@ -20,6 +20,7 @@ from app.schema.user import (
     UserResponse,
     PasswordChangeRequest,
     UserUpdate,
+    GoogleUserRequest
 )
 from app.services.auth import (
     authenticate_user,
@@ -29,16 +30,75 @@ from app.services.auth import (
     verify_password,
     hash_password,
     update_user,
+    update_google_user
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from app.core.security import oauth2_scheme
+from fastapi.responses import RedirectResponse
+from fastapi import Request
+from urllib.parse import urlencode
+from app.core.config import get_settings
+import httpx
+import jwt 
+
+settings = get_settings()
 
 router = APIRouter(tags=["Authentication"], prefix="/auth")
 
 admin_router = APIRouter(prefix="/admin", dependencies=[Depends(get_admin_user)])
 
+google_router = APIRouter(prefix="/google",tags=['Google Auth'])
+
+@google_router.get("/callback")
+async def google_callback(request: Request, db = Depends(get_session)):
+    code = request.query_params.get("code")
+    if not code:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Not auth")
+    token_url = "https://oauth2.googleapis.com/token"
+    data = {
+        "code": code,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code"
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(token_url, data=data)
+        token_data = resp.json()
+    id_token = token_data.get("id_token")
+    payload = jwt.decode(id_token, options={"verify_signature": False})
+    try:
+        user_update = GoogleUserRequest(**payload)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Google user data: {e}")
+    user = update_google_user(user_update,db)
+    access_token = create_access_token(data={"sub": user.username, "role": user.role})
+    refresh_token = create_refresh_token(data={"sub": user.username})
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        username=user.username,
+    )
+
+@google_router.get("/login")
+async def login_with_google():
+    params = {
+        "client_id" : settings.GOOGLE_CLIENT_ID,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "access_type": "offline",
+        "prompt": "consent"
+    }
+    url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+    print(url)
+    # return RedirectResponse(url)
+    return {
+        "url" : url
+    }
 
 @router.post("/login")
 async def login_for_access_token(
@@ -180,3 +240,4 @@ async def update_user_by_admin(
     return update_user(user_id, user_update, db)
 
 router.include_router(admin_router)
+router.include_router(google_router)

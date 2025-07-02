@@ -27,7 +27,6 @@ class UserResponse(UserBase):
     role: Role
     model_config = ConfigDict(from_attributes=True)
 
-
 # Schemas for authentication
 class Token(BaseModel):
     access_token: str
@@ -53,3 +52,17 @@ class PasswordChangeRequest(BaseModel):
         if "new_password" in info.data and v != info.data["new_password"]:
             raise ValueError("passwords do not match")
         return v
+    
+class GoogleUserRequest(BaseModel):
+    iss: str
+    azp: str
+    aud: str
+    sub: str
+    email : str
+    email_verified: bool
+    at_hash : str
+    name : str
+    picture : str
+    given_name : str
+    iat : int
+    exp : int
