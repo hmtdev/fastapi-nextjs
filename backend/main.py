@@ -5,6 +5,7 @@ from app.database.database import create_db_and_tables
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import api_v1
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 
 
 @asynccontextmanager
@@ -34,8 +35,4 @@ app.include_router(api_v1.router, prefix="/api/v1")
 
 @app.get("/")
 def read_root():
-    return {
-        "Environment": settings.environment,
-        "version": app.version,
-        "Debug Mode": settings.debug,
-    }
+    return RedirectResponse(url="/docs")

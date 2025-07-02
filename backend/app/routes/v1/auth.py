@@ -1,4 +1,5 @@
 from typing import Annotated
+import uuid
 
 from app.core.security import (
     create_access_token,
@@ -18,6 +19,7 @@ from app.schema.user import (
     UserCreate,
     UserResponse,
     PasswordChangeRequest,
+    UserUpdate,
 )
 from app.services.auth import (
     authenticate_user,
@@ -26,6 +28,7 @@ from app.services.auth import (
     register_user,
     verify_password,
     hash_password,
+    update_user,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -46,7 +49,6 @@ async def login_for_access_token(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
@@ -151,5 +153,30 @@ async def register_admin(
     current_user=Depends(get_admin_user),
 ):
     return register_user(user, db, role=Role.ADMIN)
+
+
+@router.put("/update", response_model=UserResponse)
+async def update_user_info(
+    user_update: UserUpdate,
+    db: Annotated[Session, Depends(get_session)],
+    current_user: User = Depends(verify_access_token),
+):
+    """
+    Update the current user's information
+    """
+    return update_user(current_user.id, user_update, db)
+
+
+@admin_router.put("/users/{user_id}", response_model=UserResponse)
+async def update_user_by_admin(
+    user_id: uuid.UUID,
+    user_update: UserUpdate,
+    db: Annotated[Session, Depends(get_session)],
+    current_user: User = Depends(get_admin_user),
+):
+    """
+    Admin endpoint to update any user's information
+    """
+    return update_user(user_id, user_update, db)
 
 router.include_router(admin_router)

@@ -17,6 +17,6 @@ class User(SQLModel, table=True):
     username: str = Field(unique=True, nullable=False)
     full_name:str = Field(nullable=False)
     hashed_password: str = Field()
-    email: EmailStr = Field()
+    email: EmailStr = Field(unique=True, nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     role: str = Field(default=Role.USER, nullable=False)
