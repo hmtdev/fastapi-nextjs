@@ -31,7 +31,6 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    refresh_token: str
 
 
 class TokenResponse(Token):
@@ -40,7 +39,6 @@ class TokenResponse(Token):
 
 class TokenRefresh(BaseModel):
     refresh_token: str
-
 
 class PasswordChangeRequest(BaseModel):
     current_password: str = Field(..., description="Current password")

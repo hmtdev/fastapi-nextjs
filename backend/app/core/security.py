@@ -11,7 +11,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 from passlib.context import CryptContext
 from sqlmodel import Session, select
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 ALGORITHM = "HS256"
 access_token_expires_minutes = settings.access_token_expire_minutes

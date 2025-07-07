@@ -36,8 +36,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from app.core.security import oauth2_scheme
-from fastapi.responses import RedirectResponse
-from fastapi import Request
+from fastapi.responses import RedirectResponse , HTMLResponse
+from fastapi import Request , Response
 from urllib.parse import urlencode
 from app.core.config import get_settings
 import httpx
@@ -52,7 +52,7 @@ admin_router = APIRouter(prefix="/admin", dependencies=[Depends(get_admin_user)]
 google_router = APIRouter(prefix="/google",tags=['Google Auth'])
 
 @google_router.get("/callback")
-async def google_callback(request: Request, db = Depends(get_session)):
+async def google_callback(request: Request, response : Response,db = Depends(get_session)):
     code = request.query_params.get("code")
     if not code:
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Not auth")
@@ -76,9 +76,17 @@ async def google_callback(request: Request, db = Depends(get_session)):
     user = update_google_user(user_update,db)
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     refresh_token = create_refresh_token(data={"sub": user.username})
+    response.set_cookie(
+            key="refresh_token", 
+            value=refresh_token,
+            httponly=True,
+            max_age=60 * 60 * 24 * 7,
+            samesite="strict",
+            secure=True,
+            path="/",
+        )  
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
         token_type="bearer",
         username=user.username,
     )
@@ -94,16 +102,15 @@ async def login_with_google():
         "prompt": "consent"
     }
     url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
-    print(url)
-    # return RedirectResponse(url)
     return {
-        "url" : url
+        "google_auth" : url
     }
+
 
 @router.post("/login")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Annotated[Session, Depends(get_session)],
+    db: Annotated[Session, Depends(get_session)],response:Response
 ) -> Token:
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
@@ -113,12 +120,18 @@ async def login_for_access_token(
         )
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     refresh_token = create_refresh_token(data={"sub": user.username})
-    key = f"refresh_token:{user.username}:{refresh_token}"
-    redis_client.setex(key,60*60*24*7,"valid")
-    return TokenResponse(
-        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
+    response.set_cookie(
+        key="refresh_token", 
+        value=refresh_token,
+        httponly=True,
+        max_age=60 * 60 * 24 * 7,
+        samesite="strict",
+        secure=True,
+        path="/",
     )
-
+    return TokenResponse(
+        access_token=access_token, token_type="bearer"
+    )
 
 @router.post("/register")
 async def register(user: UserCreate, db: Annotated[Session, Depends(get_session)]):
@@ -130,12 +143,16 @@ def read_users_me(current_user=Depends(verify_access_token)):
     return UserResponse.model_validate(current_user)
 
 
-@router.post("/refresh-token")
+@router.post("/refresh")
 async def refresh_token(
-    request: TokenRefresh, db: Annotated[Session, Depends(get_session)]
+    request: Request, db: Annotated[Session, Depends(get_session)]
 ) -> TokenResponse:
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTMLResponse(status_code=status.HTTP_401_UNAUTHORIZED,detail="Refresh token missing")
+    
     try:
-        payload = verify_refresh_token(request.refresh_token)
+        payload = verify_refresh_token(refresh_token)
         username = payload.get("sub")
         statement = select(User).where(User.username == username)
         user = db.exec(statement).first()
@@ -144,16 +161,13 @@ async def refresh_token(
                 status=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
         
-        add_to_blacklist(request.refresh_token, user.id, "refresh", db)
+        add_to_blacklist(refresh_token, user.id, "refresh", db)
 
         access_token = create_access_token(
             data={"sub": user.username, "role": user.role}
         )
-        refresh_token = create_refresh_token(data={"sub": user.username})
-
         return TokenResponse(
             access_token=access_token,
-            refresh_token=refresh_token,
             token_type="bearer",
             username=user.username,
         )
