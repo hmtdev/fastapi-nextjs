@@ -1,0 +1,2 @@
+- AccessToken save on RAM (Global state )
+- Refresh token save on Cookie , httpOnly, samesite-strict

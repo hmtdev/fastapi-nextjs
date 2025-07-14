@@ -5,10 +5,10 @@ from app.models.user import Role
 
 
 class UserBase(BaseModel):
-    email: Optional[EmailStr] = None
+    email: EmailStr
     username: str
     full_name: Optional[str] = None
-
+    avatar_url: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8)
@@ -27,12 +27,10 @@ class UserResponse(UserBase):
     role: Role
     model_config = ConfigDict(from_attributes=True)
 
-
 # Schemas for authentication
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    refresh_token: str
 
 
 class TokenResponse(Token):
@@ -41,7 +39,6 @@ class TokenResponse(Token):
 
 class TokenRefresh(BaseModel):
     refresh_token: str
-
 
 class PasswordChangeRequest(BaseModel):
     current_password: str = Field(..., description="Current password")
@@ -53,3 +50,17 @@ class PasswordChangeRequest(BaseModel):
         if "new_password" in info.data and v != info.data["new_password"]:
             raise ValueError("passwords do not match")
         return v
+    
+class GoogleUserRequest(BaseModel):
+    iss: str
+    azp: str
+    aud: str
+    sub: str
+    email : str
+    email_verified: bool
+    at_hash : str
+    name : str
+    picture : str
+    given_name : str
+    iat : int
+    exp : int

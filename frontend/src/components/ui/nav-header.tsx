@@ -7,20 +7,21 @@ import {
   NavigationMenuList,
 } from "./navigation-menu";
 
-export default function NavigationHeader() {
+import { ReactNode } from "react";
+
+export default function NavigationHeader({children}: { children?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between w-full p-4 text-size-lg">
-      <div className="flex">
-        <Button variant="ghost" className="text-lg font-bold">
-          Demo
-        </Button>
-      </div>
-      <div className="flex items-center space-x-2 flex-1">
+    <div className="flex flex-row justify-between items-center p-2 bg-red-100">
+      <Button variant="ghost" className="text-lg font-bold">
+        Demo
+      </Button>
+
+      <div className="flex-1">
         <NavigationMenu>
           <NavigationMenuList>
             <NavigationMenuItem>
               <NavigationMenuLink asChild>
-                <Link href="/">Home</Link>
+                <Link href="/dashboard">Dashboard</Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
             <NavigationMenuItem>
@@ -30,19 +31,19 @@ export default function NavigationHeader() {
             </NavigationMenuItem>
             <NavigationMenuItem>
               <NavigationMenuLink asChild>
-                <Link href="/contact">contact</Link>
+                <Link href="/contact">Contact</Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+             <NavigationMenuItem>
+              <NavigationMenuLink asChild className="text-blue-500">
+                <Link href="/genai">GenAI</Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
           </NavigationMenuList>
         </NavigationMenu>
       </div>
-      <div className="flex items-center space-x-2">
-        <Button variant="secondary" className="text-lg font-bold">
-          <Link href="/login">Login</Link>
-        </Button>
-        <Button variant="outline" className="text-lg font-bold">
-          <Link href="/register">Register</Link>
-        </Button>
+      <div className="flex items-center space-x-2 min-w-[200px] justify-end h-10">
+      {children}
       </div>
     </div>
   );

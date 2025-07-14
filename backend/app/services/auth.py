@@ -1,13 +1,13 @@
 from typing import Annotated
-
+import uuid
 import jwt
 from app.database.database import get_session
 from app.models.user import User
-from app.schema.user import Role, UserCreate, UserResponse
+from app.schema.user import Role, UserCreate, UserResponse, UserUpdate ,GoogleUserRequest
 from fastapi import Depends, HTTPException, status
 from jwt.exceptions import InvalidTokenError
 from sqlmodel import Session, select
-from app.core.security import verify_password, oauth2_scheme ,hash_password, secret_key,ALGORITHM,is_blacklisted
+from app.core.security import verify_password, oauth2_scheme ,hash_password, secret_key,ALGORITHM,is_blacklisted,create_access_token,create_refresh_token
 
 ## create func authenticate_user
 def authenticate_user(username: str, password: str, db: Session):
@@ -57,10 +57,19 @@ def get_admin_user(user=Depends(verify_access_token)):
 ## register_user
 
 def register_user(user: UserCreate, db: Session, role:Role = Role.USER) -> UserResponse:
-    statement = select(User).filter(User.username == user.username)
-    exist_user = db.exec(statement).first()
+    # Check if username already exists
+    username_statement = select(User).filter(User.username == user.username)
+    exist_user = db.exec(username_statement).first()
     if exist_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+    
+    # Check if email already exists
+    if user.email:
+        email_statement = select(User).filter(User.email == user.email)
+        exist_email = db.exec(email_statement).first()
+        if exist_email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    
     hashed_password = hash_password(user.password)
     db_user = User(
         username=user.username,
@@ -73,3 +82,52 @@ def register_user(user: UserCreate, db: Session, role:Role = Role.USER) -> UserR
     db.commit()
     db.refresh(db_user)
     return UserResponse.model_validate(db_user)
+
+def update_user(user_id: uuid.UUID, user_update: UserUpdate, db: Session) -> UserResponse:
+    """
+    Update user information and check for email uniqueness
+    """
+    statement = select(User).filter(User.id == user_id)
+    db_user = db.exec(statement).first()
+    
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if email is being updated and if it's already in use
+    if user_update.email and user_update.email != db_user.email:
+        email_statement = select(User).filter(User.email == user_update.email)
+        exist_email = db.exec(email_statement).first()
+        if exist_email:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    
+    # Update user fields
+    user_data = user_update.model_dump(exclude_unset=True)
+    if user_update.password:
+        user_data["hashed_password"] = hash_password(user_update.password)
+        # Remove the original password field
+        user_data.pop("password", None)
+    
+    for key, value in user_data.items():
+        setattr(db_user, key, value)
+    
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    return UserResponse.model_validate(db_user)
+
+def update_google_user(user_update , db :Session) -> UserResponse:
+    statement = select(User).where(User.email==user_update.email)
+    user = db.exec(statement).first()
+    if not user:
+        user = User(
+            username = user_update.email,
+            full_name = user_update.name,
+            email = user_update.email,
+            avatar_url = user_update.picture,
+            hashed_password="google_oauth"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return UserResponse.model_validate(user)
