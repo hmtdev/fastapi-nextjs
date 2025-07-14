@@ -20,7 +20,7 @@ from app.schema.user import (
     UserResponse,
     PasswordChangeRequest,
     UserUpdate,
-    GoogleUserRequest
+    GoogleUserRequest,
 )
 from app.services.auth import (
     authenticate_user,
@@ -30,18 +30,21 @@ from app.services.auth import (
     verify_password,
     hash_password,
     update_user,
-    update_google_user
+    update_google_user,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from app.core.security import oauth2_scheme
-from fastapi.responses import RedirectResponse , HTMLResponse
-from fastapi import Request , Response
+from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi import Request, Response
 from urllib.parse import urlencode
 from app.core.config import get_settings
 import httpx
-import jwt 
+import jwt
+import secrets
+import base64
+import json
 
 settings = get_settings()
 
@@ -49,20 +52,36 @@ router = APIRouter(tags=["Authentication"], prefix="/auth")
 
 admin_router = APIRouter(prefix="/admin", dependencies=[Depends(get_admin_user)])
 
-google_router = APIRouter(prefix="/google",tags=['Google Auth'])
+google_router = APIRouter(prefix="/google", tags=["Google Auth"])
+
 
 @google_router.get("/callback")
-async def google_callback(request: Request, response : Response,db = Depends(get_session)):
+async def google_callback(
+    request: Request, response: Response, db=Depends(get_session)
+):
     code = request.query_params.get("code")
+    state = request.query_params.get("state")
     if not code:
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Not auth")
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Missing code or state"
+        )
+    try:
+        state_data = json.loads(base64.urlsafe_b64decode(state + "==").decode())
+        redirect_uri = state_data.get("redirect_uri")
+        state_key = state_data.get("key")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state"
+        )
+
     token_url = "https://oauth2.googleapis.com/token"
+
     data = {
         "code": code,
         "client_id": settings.GOOGLE_CLIENT_ID,
         "client_secret": settings.GOOGLE_CLIENT_SECRET,
         "redirect_uri": settings.GOOGLE_REDIRECT_URI,
-        "grant_type": "authorization_code"
+        "grant_type": "authorization_code",
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(token_url, data=data)
@@ -73,44 +92,49 @@ async def google_callback(request: Request, response : Response,db = Depends(get
         user_update = GoogleUserRequest(**payload)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Google user data: {e}")
-    user = update_google_user(user_update,db)
+    user = update_google_user(user_update, db)
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
-    refresh_token = create_refresh_token(data={"sub": user.username})
+    response = RedirectResponse(url=redirect_uri)
     response.set_cookie(
-            key="refresh_token", 
-            value=refresh_token,
-            httponly=True,
-            max_age=60 * 60 * 24 * 7,
-            samesite="strict",
-            secure=True,
-            path="/",
-        )  
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        username=user.username,
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=3600 
     )
+    return response
+
 
 @google_router.get("/login")
-async def login_with_google():
+async def login_with_google(redirect_uri: str = None):
+    state_data = {
+        "key": secrets.token_urlsafe(32),
+        "redirect_uri": redirect_uri or settings.FRONTEND_URL,
+    }
+    state = (
+        base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode().rstrip("=")
+    )
     params = {
-        "client_id" : settings.GOOGLE_CLIENT_ID,
+        "client_id": settings.GOOGLE_CLIENT_ID,
         "response_type": "code",
         "scope": "openid email profile",
         "redirect_uri": settings.GOOGLE_REDIRECT_URI,
         "access_type": "offline",
-        "prompt": "consent"
+        "prompt": "consent",
+        "state": state,
     }
     url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
     return {
-        "google_auth" : url
+        "url" : url
     }
 
 
 @router.post("/login")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Annotated[Session, Depends(get_session)],response:Response
+    db: Annotated[Session, Depends(get_session)],
+    response: Response,
 ) -> Token:
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
@@ -121,7 +145,7 @@ async def login_for_access_token(
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
     refresh_token = create_refresh_token(data={"sub": user.username})
     response.set_cookie(
-        key="refresh_token", 
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         max_age=60 * 60 * 24 * 7,
@@ -129,9 +153,8 @@ async def login_for_access_token(
         secure=True,
         path="/",
     )
-    return TokenResponse(
-        access_token=access_token, token_type="bearer"
-    )
+    return TokenResponse(access_token=access_token, token_type="bearer")
+
 
 @router.post("/register")
 async def register(user: UserCreate, db: Annotated[Session, Depends(get_session)]):
@@ -149,8 +172,10 @@ async def refresh_token(
 ) -> TokenResponse:
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
-        raise HTMLResponse(status_code=status.HTTP_401_UNAUTHORIZED,detail="Refresh token missing")
-    
+        raise HTMLResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing"
+        )
+
     try:
         payload = verify_refresh_token(refresh_token)
         username = payload.get("sub")
@@ -160,7 +185,7 @@ async def refresh_token(
             raise HTTPException(
                 status=status.HTTP_401_UNAUTHORIZED, detail="User not found"
             )
-        
+
         add_to_blacklist(refresh_token, user.id, "refresh", db)
 
         access_token = create_access_token(
@@ -206,7 +231,7 @@ async def change_password(
     return {"detail": "Password changed successfully"}
 
 
-@router.get("/logout")
+@router.post("/logout")
 async def logout(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Annotated[Session, Depends(get_session)],
@@ -252,6 +277,7 @@ async def update_user_by_admin(
     Admin endpoint to update any user's information
     """
     return update_user(user_id, user_update, db)
+
 
 router.include_router(admin_router)
 router.include_router(google_router)

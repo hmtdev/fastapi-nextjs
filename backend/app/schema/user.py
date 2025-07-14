@@ -8,7 +8,7 @@ class UserBase(BaseModel):
     email: EmailStr
     username: str
     full_name: Optional[str] = None
-
+    avatar_url: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8)
